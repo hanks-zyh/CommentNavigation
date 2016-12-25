@@ -3,7 +3,6 @@ import com.intellij.openapi.editor.LogicalPosition;
 import com.intellij.openapi.editor.ScrollType;
 import com.intellij.openapi.fileEditor.*;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.ui.PanelWithText;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
@@ -12,16 +11,14 @@ import org.jetbrains.annotations.NotNull;
 
 import javax.swing.*;
 import java.awt.*;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
+ * 插入注释代码
  * Created by hanks on 2016/11/2.
  */
 public class EditorPanelInjector implements FileEditorManagerListener {
 
     private final Project project;
-    private Map panels = new HashMap<FileEditor, PanelWithText>();
 
     public EditorPanelInjector(Project project) {
         this.project = project;
@@ -38,8 +35,15 @@ public class EditorPanelInjector implements FileEditorManagerListener {
         if (!(editor instanceof TextEditor)) {
             return;
         }
-
         try {
+
+            Editor textEditor = ((TextEditor) editor).getEditor();
+            PsiFile file = PsiDocumentManager.getInstance(project).getPsiFile(textEditor.getDocument());
+            java.util.List<Comment> texts = AnalyzeCode.analyzeCodeComment(file.getText());
+            if (texts.size() <= 0) {
+                return;
+            }
+
             JPanel outerPanel = (JPanel) editor.getComponent();
             BorderLayout outerLayout = (BorderLayout) outerPanel.getLayout();
 
@@ -55,12 +59,7 @@ public class EditorPanelInjector implements FileEditorManagerListener {
             BorderLayout innerLayout = (BorderLayout) panel.getLayout();
             // Ok we finally found the actual editor layout. Now make sure we haven't already injected into this editor.
             if (innerLayout.getLayoutComponent(BorderLayout.LINE_END) == null) {
-                Editor editor1 = ((TextEditor) editor).getEditor();
-                PsiFile file = PsiDocumentManager.getInstance(project).getPsiFile(editor1.getDocument());
-                java.util.List<Comment> texts = AnalyzeCode.analyzeCodeComment(file.getText());
-                if (texts.size() <= 0) {
-                    return;
-                }
+
                 JPanel textPanel = new JPanel(new GridLayout(texts.size(), 1));
                 final String[] comments = new String[texts.size()];
                 for (int i = 0; i < texts.size(); i++) {
@@ -70,11 +69,11 @@ public class EditorPanelInjector implements FileEditorManagerListener {
                 jListFont.addListSelectionListener(e -> {
                     int selectedIndex = jListFont.getSelectedIndex();
                     int line = texts.get(selectedIndex).getLine();
-                    scrollToLine(editor1, line);
+                    scrollToLine(textEditor, line);
                 });
                 // 设置jList1对象的带标题边框
                 jListFont.setBorder(BorderFactory.createTitledBorder("目录: "));
-                // 设置jList1对象的选择模式为单一选择  
+                // 设置jList1对象的选择模式为单一选择
                 jListFont.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
                 jListFont.setVisibleRowCount(100);
                 jListFont.setFixedCellWidth(140);
@@ -86,15 +85,12 @@ public class EditorPanelInjector implements FileEditorManagerListener {
             } else {
                 System.out.println("I07: Injection skipped. Looks like we have already injected something here.");
             }
-
-
         } catch (Exception e) {
 
         }
     }
 
     private void scrollToLine(Editor editor, int line) {
-        System.out.println("scroll: " + line);
         editor.getScrollingModel().disableAnimation();
         editor.getScrollingModel().scrollTo(new LogicalPosition(line, 1), ScrollType.CENTER_UP);
         editor.getScrollingModel().enableAnimation();
@@ -107,6 +103,5 @@ public class EditorPanelInjector implements FileEditorManagerListener {
 
     @Override
     public void selectionChanged(@NotNull FileEditorManagerEvent fileEditorManagerEvent) {
-
     }
 }
